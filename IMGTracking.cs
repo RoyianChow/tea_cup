@@ -11,7 +11,7 @@ public class ImageTracking : MonoBehaviour
     private GameObject[] placeableObjects;
 
     // Dictionary that keeps track of spawned objects by name
-    private Dictionary<string, GameObject> spawnedObjects = new Dictionary<string, GameObject>();
+    private Dictionary<string, List<GameObject>> spawnedObjects = new Dictionary<string, List<GameObject>>();
 
     // Reference to ARTrackedImageManager for managing tracked images
     private ARTrackedImageManager trackedImageManager;
@@ -24,9 +24,7 @@ public class ImageTracking : MonoBehaviour
         // Instantiate and add all placeable objects to the scene
         foreach (GameObject placeableObject in placeableObjects)
         {
-            GameObject newObject = Instantiate(placeableObject, Vector3.zero, Quaternion.identity);
-            newObject.name = placeableObject.name;
-            spawnedObjects.Add(placeableObject.name, newObject);
+            spawnedObjects.Add(placeableObject.name, new List<GameObject>());
         }
     }
 
@@ -55,7 +53,13 @@ public class ImageTracking : MonoBehaviour
         }
         foreach (ARTrackedImage trackedImage in eventArgs.removed)
         {
-            spawnedObjects[trackedImage.name].SetActive(false);
+            if (spawnedObjects.ContainsKey(trackedImage.name))
+            {
+                foreach (GameObject obj in spawnedObjects[trackedImage.name])
+                {
+                    obj.SetActive(false);
+                }
+            }
         }
     }
 
@@ -65,18 +69,40 @@ public class ImageTracking : MonoBehaviour
         string objectName = trackedImage.referenceImage.name;
         Vector3 objectPosition = trackedImage.transform.position;
 
-        // Get the object prefab and update its position
-        GameObject objectPrefab = spawnedObjects[objectName];
-        objectPrefab.transform.position = objectPosition;
-        objectPrefab.SetActive(true);
+        // Get the object prefab and add it to the tracked image
+        GameObject objectPrefab = GetObjectPrefab(objectName);
+        GameObject spawnedObject = Instantiate(objectPrefab, objectPosition, Quaternion.identity);
+        spawnedObject.SetActive(true);
 
-        // Deactivate all other spawned objects
-        foreach (GameObject obj in spawnedObjects.Values)
+        // Add the spawned object to the list of spawned objects for this tracked image
+        if (!spawnedObjects.ContainsKey(objectName))
         {
-            if (obj.name != objectName)
+            spawnedObjects.Add(objectName, new List<GameObject>());
+        }
+        spawnedObjects[objectName].Add(spawnedObject);
+
+        // Deactivate all other spawned objects for this tracked image
+        foreach (GameObject obj in spawnedObjects[objectName])
+        {
+            if (obj != spawnedObject)
             {
                 obj.SetActive(false);
             }
         }
+    }
+
+    private GameObject GetObjectPrefab(string objectName)
+    {
+        // Find the object prefab with the specified name
+        foreach (GameObject placeableObject in placeableObjects)
+        {
+            if (placeableObject.name == objectName)
+            {
+                return placeableObject;
+            }
+        }
+
+        // Return the first object prefab if no matching prefab was found
+        return placeableObjects[0];
     }
 }
